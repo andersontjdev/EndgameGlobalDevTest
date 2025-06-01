@@ -7,6 +7,7 @@
 
 import Foundation
 
+@MainActor
 protocol UserDetailViewModelDelegate: AnyObject {
     func didLoadUserProfile()
     func didStartLoading()
@@ -14,6 +15,7 @@ protocol UserDetailViewModelDelegate: AnyObject {
     func didReceiveError(_ error: String)
 }
 
+@MainActor
 class UserDetailViewModel {
     weak var delegate: UserDetailViewModelDelegate?
     
@@ -21,7 +23,6 @@ class UserDetailViewModel {
     private(set) var isLoading = false
     private(set) var errorMessage: String?
     
-    private let apiService = GitHubAPIService.shared
     private let user: User
     
     init(user: User) {
@@ -70,33 +71,28 @@ class UserDetailViewModel {
     
     // MARK: Public Functions
     
-    func loadUserProfile() {
+    func loadUserProfile() async {
         print("UserDetailViewModel: Loading user profile for \(user.login)")
         
         isLoading = true
         errorMessage = nil
         delegate?.didStartLoading()
         
-        apiService.fetchUserProfile(username: user.login) { [weak self] result in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                
-                self.isLoading = false
-                self.delegate?.didFinishLoading()
-                
-                switch result {
-                case .success(let profile):
-                    print("UserDetailViewModel: User profile loaded successfully")
-                    self.userProfile = profile
-                    self.delegate?.didLoadUserProfile()
-                    
-                case .failure(let error):
-                    print("UserDetailViewModel: User profile loading failed - \(error)")
-                    self.errorMessage = error.localizedDescription
-                    self.delegate?.didReceiveError(error.localizedDescription)
-                }
-            }
+        do {
+            let profile = try await GitHubAPIService.shared.fetchUserProfile(username: user.login)
+            
+            print("UserDetailViewModel: User profile loaded successfully")
+            userProfile = profile
+            isLoading = false
+            delegate?.didFinishLoading()
+            delegate?.didLoadUserProfile()
+            
+        } catch {
+            print("UserDetailViewModel: User profile loading failed - \(error)")
+            errorMessage = error.localizedDescription
+            isLoading = false
+            delegate?.didReceiveError(error.localizedDescription)
+            delegate?.didFinishLoading()
         }
     }
-    
 }

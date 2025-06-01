@@ -173,16 +173,16 @@ class UserCellTemplate: UITableViewCell {
         setPlaceholderAvatar()
         
         // Load the image
-        ImageLoadingService.shared.loadImage(from: urlString) { [weak self] image in
-            DispatchQueue.main.async {
-                self?.imageLoadingIndicator.stopAnimating()
-                
-                if let image = image {
-                    self?.avatarImageView.image = image
-                    self?.avatarImageView.tintColor = nil
-                } else {
-                    self?.setPlaceholderAvatar()
-                }
+        Task { @MainActor in
+            let image = await ImageLoadingService.shared.loadImage(from: urlString)
+            
+            imageLoadingIndicator.stopAnimating()
+            
+            if let image = image {
+                avatarImageView.image = image
+                avatarImageView.tintColor = nil
+            } else {
+                setPlaceholderAvatar()
             }
         }
     }

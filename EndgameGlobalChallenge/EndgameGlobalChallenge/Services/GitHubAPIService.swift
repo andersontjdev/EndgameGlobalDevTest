@@ -7,7 +7,7 @@
 
 import Foundation
 
-class GitHubAPIService {
+actor GitHubAPIService {
     
     static let shared = GitHubAPIService()
     
@@ -24,127 +24,85 @@ class GitHubAPIService {
     
     // MARK: Public Functions
     
-    func searchUsers(query: String, completion: @escaping (Result<GitHubSearchResponse, APIError>) -> Void) {
+    func searchUsers(query: String) async throws -> GitHubSearchResponse {
         guard !query.isEmpty else {
-            completion(.success(GitHubSearchResponse(totalCount: 0, incompleteResults: false, items: [])))
-            
-            return
+            return GitHubSearchResponse(totalCount: 0, incompleteResults: false, items: [])
         }
         
         guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let url = URL(string: "\(baseUrl)/search/users?q=\(encodedQuery)") else {
-            completion(.failure(.invalidUrl))
-            
-            return
+            throw APIError.invalidUrl
         }
         
         print("GitHubAPIService: Making network request to \(url)")
         
-        let task = session.dataTask(with: url) { data, response, error in
-            if let error = error {
-                print("GitHubAPIService: Network Error - \(error)")
-                completion(.failure(.networkError(error)))
-                
-                return
-            }
+        do {
+            let (data, response) = try await session.data(from: url)
             
             guard let httpResponse = response as? HTTPURLResponse else {
                 print("GitHubAPIService: Invalid response type")
-                completion(.failure(.invalidResponse))
-                
-                return
+                throw APIError.invalidResponse
             }
             
             print("GitHubAPIService: Response status code: \(httpResponse.statusCode)")
             
             // Handle rate limiting
             if httpResponse.statusCode == 403 {
-                completion(.failure(.rateLimitExceeded))
-                
-                return
+                throw APIError.rateLimitExceeded
             }
             
             guard httpResponse.statusCode == 200 else {
-                completion(.failure(.invalidResponse))
-                
-                return
+                throw APIError.invalidResponse
             }
             
-            guard let data = data else {
-                print("GitHubAPIService: No data received from the server")
-                completion(.failure(.noData))
-                
-                return
-            }
+            let searchResponse = try JSONDecoder().decode(GitHubSearchResponse.self, from: data)
+            print("GitHubAPIService: Successfully decoded \(searchResponse.items.count) users")
             
-            do {
-                let searchResponse = try JSONDecoder().decode(GitHubSearchResponse.self, from: data)
-                print("GitHubAPIService: Successfully decoded \(searchResponse.items.count) users")
-                completion(.success(searchResponse))
-            } catch {
-                print("GitHubAPIService: Decoding error - \(error)")
-                completion(.failure(.decodingError))
-            }
+            return searchResponse
+            
+        } catch let error as APIError {
+            print("GitHubAPIService: API error - \(error)")
+            throw error
+        } catch {
+            print("GitHubAPIService: Network Error - \(error)")
+            throw APIError.networkError(error)
         }
-        
-        task.resume()
     }
     
-    func fetchUserProfile(username: String, completion: @escaping (Result<UserProfile, APIError>) -> Void) {
+    func fetchUserProfile(username: String) async throws -> UserProfile {
         guard let url = URL(string: "\(baseUrl)/users/\(username)") else {
-            completion(.failure(.invalidUrl))
-            
-            return
+            throw APIError.invalidUrl
         }
         
         print("GitHubAPIService: Fetching profile data for \(username)")
         
-        let task = session.dataTask(with: url) { data, response, error in
-            if let error = error {
-                print("GitHubAPIService: Profile fetch error - \(error)")
-                completion(.failure(.networkError(error)))
-                
-                return
-            }
+        do {
+            let (data, response) = try await session.data(from: url)
             
             guard let httpResponse = response as? HTTPURLResponse else {
                 print("GitHubAPIService: Invalid response type")
-                completion(.failure(.invalidResponse))
-                
-                return
+                throw APIError.invalidResponse
             }
             
             print("GitHubAPITService: Profile response status code: \(httpResponse.statusCode)")
             
             if httpResponse.statusCode == 403 {
-                completion(.failure(.rateLimitExceeded))
-                
-                return
+                throw APIError.rateLimitExceeded
             }
             
             guard httpResponse.statusCode == 200 else {
-                completion(.failure(.invalidResponse))
-                
-                return
+                throw APIError.invalidResponse
             }
             
-            guard let data = data else {
-                print("GitHubAPIService: No profile data received from the server")
-                completion(.failure(.noData))
-                
-                return
-            }
+            let userProfile = try JSONDecoder().decode(UserProfile.self, from: data)
+            print("GitHubAPIService: Successfully decoded profile for \(userProfile.login)")
             
-            do {
-                let userProfile = try JSONDecoder().decode(UserProfile.self, from: data)
-                print("GitHubAPIService: Successfully decoded profile for \(userProfile.login)")
-                completion(.success(userProfile))
-            } catch {
-                print("GitHubAPIService: Profile decoding error - \(error)")
-                completion(.failure(.decodingError))
-            }
+            return userProfile
+        } catch let error as APIError {
+            throw error
+        } catch {
+            print("GitHubAPIService: Profile fetch error - \(error)")
+            throw APIError.networkError(error)
         }
-        
-        task.resume()
     }
 }

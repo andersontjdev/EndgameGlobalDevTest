@@ -7,7 +7,7 @@
 
 import UIKit
 
-class ImageLoadingService {
+actor ImageLoadingService {
     
     static let shared = ImageLoadingService()
     
@@ -27,46 +27,31 @@ class ImageLoadingService {
     
     // MARK: Public Functions
     
-    func loadImage(from urlString: String, completion: @escaping (UIImage?) -> Void) {
+    func loadImage(from urlString: String) async -> UIImage? {
         // Check for an image in the cache first
         let cacheKey = NSString(string: urlString)
         if let cachedImage = cache.object(forKey: cacheKey) {
-            DispatchQueue.main.async {
-                completion(cachedImage)
-            }
-            
-            return
+            return cachedImage
         }
         
         // Load image from the network
         guard let url = URL(string: urlString) else {
-            DispatchQueue.main.async {
-                completion(nil)
-            }
-            
-            return
+            return nil
         }
         
-        let task = session.dataTask(with: url) { [weak self] data, response, error in
-            guard let self = self,
-                  let data = data,
-                  let image = UIImage(data: data),
-                  error == nil else {
-                DispatchQueue.main.async {
-                    completion(nil)
-                }
-                
-                return
+        do {
+            let (data, _) = try await session.data(from: url)
+            guard let image = UIImage(data: data) else {
+                return nil
             }
             
             // Store the image in the cache
             self.cache.setObject(image, forKey: cacheKey)
             
-            DispatchQueue.main.async {
-                completion(image)
-            }
+            return image
+        } catch {
+            print("ImageLoadingService: Failed to load image from \(urlString) - \(error)")
+            return nil
         }
-        
-        task.resume()
     }
 }

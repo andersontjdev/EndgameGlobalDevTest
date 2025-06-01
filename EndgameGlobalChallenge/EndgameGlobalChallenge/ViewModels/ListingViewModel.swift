@@ -9,6 +9,7 @@ import Foundation
 
 // MARK: ListingViewModelDelegate
 
+@MainActor
 protocol ListingViewModelDelegate: AnyObject {
     func didUpdateUsers()
     func didStartLoading()
@@ -18,6 +19,7 @@ protocol ListingViewModelDelegate: AnyObject {
 
 // MARK: ListingViewModel
 
+@MainActor
 class ListingViewModel {
     weak var delegate: ListingViewModelDelegate?
     
@@ -26,8 +28,7 @@ class ListingViewModel {
     private(set) var errorMessage: String?
     private(set) var hasSearched = false
     
-    private let apiService = GitHubAPIService.shared
-    private var searchTask: DispatchWorkItem?
+    private var searchTask: Task<Void, Never>?
     private let debounceDelay: TimeInterval = 0.5
     
     var numberOfUsers: Int {
@@ -78,12 +79,13 @@ class ListingViewModel {
         }
         
         // Create a debounced search task
-        let task = DispatchWorkItem { [weak self] in
-            self?.performSearch(for: query)
+        searchTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64(debounceDelay * 1_000_000_000))
+            
+            guard !Task.isCancelled else { return }
+            
+            await performSearch(for: query)
         }
-        
-        searchTask = task
-        DispatchQueue.main.asyncAfter(deadline: .now() + debounceDelay, execute: task)
     }
     
     func getUserAt(_ index: Int) -> User? {
@@ -94,40 +96,36 @@ class ListingViewModel {
     
     // MARK: Private Functions
     
-    private func performSearch(for query: String) {
+    private func performSearch(for query: String) async {
         print("ListingViewModel: Performing search for users with query: '\(query)'")
         
         isLoading = true
         errorMessage = nil
         hasSearched = true
+        delegate?.didStartLoading()
         
-        // Notify the delegate on the main thread
-        DispatchQueue.main.async { [weak self] in
-            self?.delegate?.didStartLoading()
-        }
-        
-        apiService.searchUsers(query: query) { [weak self] result in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                
-                self.isLoading = false
-                self.delegate?.didFinishLoading()
-                
-                switch result {
-                case .success(let searchResponse):
-                    print("ListingViewModel: Search successful, found \(searchResponse.items.count) users")
-                    self.users = searchResponse.items
-                    self.errorMessage = nil
-                    self.delegate?.didUpdateUsers()
-                    
-                case .failure(let error):
-                    print("ListingViewModel: Search failed - \(error.localizedDescription)")
-                    self.errorMessage = error.localizedDescription
-                    self.users = []
-                    self.delegate?.didReceiveError(error.localizedDescription)
-                    self.delegate?.didUpdateUsers()
-                }
-            }
+        do {
+            let searchResponse = try await GitHubAPIService.shared.searchUsers(query: query)
+            
+            guard !Task.isCancelled else { return }
+            
+            print("ListingViewModel: Search successful, found \(searchResponse.items.count) users")
+            users = searchResponse.items
+            errorMessage = nil
+            isLoading = false
+            delegate?.didFinishLoading()
+            delegate?.didUpdateUsers()
+            
+        } catch {
+            guard !Task.isCancelled else { return }
+            
+            print("ListingViewModel: Search failed - \(error.localizedDescription)")
+            errorMessage = error.localizedDescription
+            users = []
+            isLoading = false
+            delegate?.didReceiveError(error.localizedDescription)
+            delegate?.didFinishLoading()
+            delegate?.didUpdateUsers()
         }
     }
 }

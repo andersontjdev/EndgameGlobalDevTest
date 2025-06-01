@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct User {
+struct User: Codable, Hashable, Sendable {
     let id: Int
     let login: String
     let avatarUrl: String?
@@ -27,11 +27,6 @@ struct User {
         self.htmlUrl = htmlUrl
         self.type = type
     }
-}
-
-// MARK: Codable extension for API
-
-extension User: Codable {
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -40,11 +35,6 @@ extension User: Codable {
         case htmlUrl = "html_url"
         case type
     }
-}
-
-// MARK: Hashable extension for removing duplicate data
-
-extension User: Hashable {
     
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)

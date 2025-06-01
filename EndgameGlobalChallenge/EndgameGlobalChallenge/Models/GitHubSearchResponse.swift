@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct GitHubSearchResponse: Codable {
+struct GitHubSearchResponse: Codable, Sendable {
     let totalCount: Int
     let incompleteResults: Bool
     let items: [User]
