@@ -29,7 +29,7 @@ The app follows MVVM architecture pattern with clear separation of concerns:
 
 ### Installation
 1. Clone the repository:
-    https://github.com/yourusername/EndgameGlobalDevTest.git
+    https://github.com/andersontjdev/EndgameGlobalDevTest.git
 2. Open EndgameGlobalChallenge.xcodeproj in Xcode
 3. Build and run the project
 
