@@ -24,54 +24,66 @@ class ListingViewModel {
     private(set) var users: [User] = []
     private(set) var isLoading = false
     private(set) var errorMessage: String?
+    private(set) var hasSearched = false
     
-    // Create mock data
-    private let mockUsers: [User] = [
-        User(id: 1, login: "mock_user_01"),
-        User(id: 2, login: "mock_user_02"),
-        User(id: 3, login: "mock_user_03"),
-        User(id: 4, login: "mock_user_04"),
-        User(id: 5, login: "mock_user_05"),
-        User(id: 6, login: "mock_user_06"),
-        User(id: 7, login: "mock_user_07"),
-        User(id: 8, login: "mock_user_08"),
-        User(id: 9, login: "mock_user_09"),
-        User(id: 10, login: "mock_user_10")
-    ]
+    private let apiService = GitHubAPIService.shared
+    private var searchTask: DispatchWorkItem?
+    private let debounceDelay: TimeInterval = 0.5
     
     var numberOfUsers: Int {
         return users.count
     }
     
+    var shouldShowEmptyState: Bool {
+        return users.isEmpty && !isLoading
+    }
+    
+    var emptyStateMessage: String {
+        if !hasSearched {
+            return "Search for GitHub users to get started"
+        } else {
+            return "No users found\nTry searching for a different username"
+        }
+    }
+    
+    var emptyStateImageName: String {
+        if !hasSearched {
+            return "magnifyingglass.circle"
+        } else {
+            return "magnifyingglass"
+        }
+    }
+    
     init() {
-        loadMockData()
+        print("ListingViewModel: Initializing")
+        
+        delegate?.didUpdateUsers()
     }
     
     // MARK: Public Functions
     
     func searchUsers(query: String) {
-        // Simulate a loading state
-        isLoading = true
-        delegate?.didStartLoading()
+        print("ListingViewModel: Search initiated with query: '\(query)'")
         
-        // Simulate a network request delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            guard let self = self else { return }
+        // Cancel any previous search tasks
+        searchTask?.cancel()
+        
+        // Handle empty queries
+        if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            users = []
+            hasSearched = false
+            delegate?.didUpdateUsers()
             
-            if query.isEmpty {
-                // No search term, just return all mock users for now
-                self.users = self.mockUsers
-            } else {
-                // Filter mock users by login based on search term
-                self.users = self.mockUsers.filter {
-                    $0.login.localizedCaseInsensitiveContains(query)
-                }
-            }
-            
-            self.isLoading = false
-            self.delegate?.didFinishLoading()
-            self.delegate?.didUpdateUsers()
+            return
         }
+        
+        // Create a debounced search task
+        let task = DispatchWorkItem { [weak self] in
+            self?.performSearch(for: query)
+        }
+        
+        searchTask = task
+        DispatchQueue.main.asyncAfter(deadline: .now() + debounceDelay, execute: task)
     }
     
     func getUserAt(_ index: Int) -> User? {
@@ -82,8 +94,40 @@ class ListingViewModel {
     
     // MARK: Private Functions
     
-    private func loadMockData() {
-        users = mockUsers
-        delegate?.didUpdateUsers()
+    private func performSearch(for query: String) {
+        print("ListingViewModel: Performing search for users with query: '\(query)'")
+        
+        isLoading = true
+        errorMessage = nil
+        hasSearched = true
+        
+        // Notify the delegate on the main thread
+        DispatchQueue.main.async { [weak self] in
+            self?.delegate?.didStartLoading()
+        }
+        
+        apiService.searchUsers(query: query) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                
+                self.isLoading = false
+                self.delegate?.didFinishLoading()
+                
+                switch result {
+                case .success(let searchResponse):
+                    print("ListingViewModel: Search successful, found \(searchResponse.items.count) users")
+                    self.users = searchResponse.items
+                    self.errorMessage = nil
+                    self.delegate?.didUpdateUsers()
+                    
+                case .failure(let error):
+                    print("ListingViewModel: Search failed - \(error.localizedDescription)")
+                    self.errorMessage = error.localizedDescription
+                    self.users = []
+                    self.delegate?.didReceiveError(error.localizedDescription)
+                    self.delegate?.didUpdateUsers()
+                }
+            }
+        }
     }
 }

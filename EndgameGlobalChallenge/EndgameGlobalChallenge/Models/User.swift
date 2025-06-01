@@ -25,3 +25,28 @@ struct User {
         self.htmlUrl = htmlUrl
     }
 }
+
+// MARK: Codable extension for API
+
+extension User: Codable {
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case login
+        case avatarUrl = "avatar_url"
+        case htmlUrl = "html_url"
+    }
+}
+
+// MARK: Hashable extension for removing duplicate data
+
+extension User: Hashable {
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    static func == (lhs: User, rhs: User) -> Bool {
+        return lhs.id == rhs.id
+    }
+}

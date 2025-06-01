@@ -39,6 +39,16 @@ class UserCellTemplate: UITableViewCell {
         return view
     }()
     
+    private let imageLoadingIndicator: UIActivityIndicatorView = {
+        let indicator = UIActivityIndicatorView(style: .medium)
+        indicator.translatesAutoresizingMaskIntoConstraints = false
+        indicator.hidesWhenStopped = true
+        
+        return indicator
+    }()
+    
+    private var imageLoadingTask: URLSessionDataTask?
+    
     // MARK: Init
     
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
@@ -61,6 +71,9 @@ class UserCellTemplate: UITableViewCell {
         super.prepareForReuse()
         avatarImageView.image = nil
         usernameLabel.text = nil
+        imageLoadingIndicator.stopAnimating()
+        imageLoadingTask?.cancel()
+        imageLoadingTask = nil
     }
     
     // MARK: Public Functions
@@ -68,11 +81,12 @@ class UserCellTemplate: UITableViewCell {
     func configure(with user: User) {
         usernameLabel.text = user.login
         
-        // Mock User to use SF Symbol for the avatar
-        let configuration = UIImage.SymbolConfiguration(pointSize: 30, weight: .regular)
-        let avatarImage = UIImage(systemName: "person.circle", withConfiguration: configuration)
-        avatarImageView.image = avatarImage
-        avatarImageView.tintColor = .systemGray
+        // Load the avatar image
+        if let avatarUrlString = user.avatarUrl {
+            loadAvatarImage(from: avatarUrlString)
+        } else {
+            setPlaceholderAvatar()
+        }
     }
     
     // MARK: Private Functions
@@ -82,8 +96,9 @@ class UserCellTemplate: UITableViewCell {
         backgroundColor = .systemBackground
         
         contentView.addSubview(containerView)
-        contentView.addSubview(avatarImageView)
-        contentView.addSubview(usernameLabel)
+        containerView.addSubview(avatarImageView)
+        containerView.addSubview(usernameLabel)
+        containerView.addSubview(imageLoadingIndicator)
         
         setupConstraints()
     }
@@ -107,9 +122,42 @@ class UserCellTemplate: UITableViewCell {
             usernameLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
             usernameLabel.centerYAnchor.constraint(equalTo: containerView.centerYAnchor),
             
+            // Loading indicator contraints
+            imageLoadingIndicator.centerXAnchor.constraint(equalTo: avatarImageView.centerXAnchor),
+            imageLoadingIndicator.centerYAnchor.constraint(equalTo: avatarImageView.centerYAnchor),
+            
             // Minimum height constraint
             containerView.heightAnchor.constraint(greaterThanOrEqualToConstant: 60)
         ])
+    }
+    
+    private func loadAvatarImage(from urlString: String) {
+        // Show the loading indicator
+        imageLoadingIndicator.startAnimating()
+        
+        // While loading, user the default placeholder avatar
+        setPlaceholderAvatar()
+        
+        // Load the image
+        ImageLoadingService.shared.loadImage(from: urlString) { [weak self] image in
+            DispatchQueue.main.async {
+                self?.imageLoadingIndicator.stopAnimating()
+                
+                if let image = image {
+                    self?.avatarImageView.image = image
+                    self?.avatarImageView.tintColor = nil
+                } else {
+                    self?.setPlaceholderAvatar()
+                }
+            }
+        }
+    }
+    
+    private func setPlaceholderAvatar() {
+        let configuration = UIImage.SymbolConfiguration(pointSize: 30, weight: .regular)
+        let avatarimage = UIImage(systemName: "person.circle", withConfiguration: configuration)
+        avatarImageView.image = avatarimage
+        avatarImageView.tintColor = .systemGray
     }
     
 }

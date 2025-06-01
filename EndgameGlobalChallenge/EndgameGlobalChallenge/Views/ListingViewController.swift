@@ -24,7 +24,7 @@ class ListingViewController: UIViewController {
     }()
     
     private let tableView: UITableView = {
-       let tableView = UITableView(frame: .zero, style: .plain)
+        let tableView = UITableView(frame: .zero, style: .plain)
         tableView.translatesAutoresizingMaskIntoConstraints = false
         tableView.backgroundColor = .systemBackground
         tableView.separatorStyle = .singleLine
@@ -44,16 +44,51 @@ class ListingViewController: UIViewController {
         return indicator
     }()
     
+    private let emptyStateView: UIView = {
+       let view = UIView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.isHidden = true
+        
+        return view
+    }()
+    
+    private let emptyStateLabel: UILabel = {
+        let label = UILabel()
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        label.textColor = .secondaryLabel
+        label.font = .systemFont(ofSize: 16)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        
+        return label
+    }()
+    
+    private let emptyStateImageView: UIImageView = {
+        let imageView = UIImageView()
+        imageView.tintColor = .secondaryLabel
+        imageView.contentMode = .scaleAspectFit
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        
+        return imageView
+    }()
+    
     // MARK: View Lifecycle
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        print("ListingViewController: viewDidLoad called")
+        
         setupUI()
         setupNavigationBar()
         setupTableView()
         setupSearchBar()
         setupViewModel()
         setupConstraints()
+        
+        // Show initial empty state view
+        updateEmptyState()
+        emptyStateView.isHidden = false
+        tableView.isHidden = true
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -69,9 +104,14 @@ class ListingViewController: UIViewController {
     
     private func setupUI() {
         view.backgroundColor = .systemBackground
+        
         view.addSubview(searchBar)
         view.addSubview(tableView)
         view.addSubview(loadingIndicator)
+        view.addSubview(emptyStateView)
+        
+        emptyStateView.addSubview(emptyStateImageView)
+        emptyStateView.addSubview(emptyStateLabel)
     }
     
     private func setupNavigationBar() {
@@ -109,8 +149,32 @@ class ListingViewController: UIViewController {
             
             // Loading indicator contraints
             loadingIndicator.centerXAnchor.constraint(equalTo: tableView.centerXAnchor),
-            loadingIndicator.centerYAnchor.constraint(equalTo: tableView.centerYAnchor)
+            loadingIndicator.centerYAnchor.constraint(equalTo: tableView.centerYAnchor),
+            
+            // Empty state view constraints
+            emptyStateView.topAnchor.constraint(equalTo: searchBar.bottomAnchor),
+            emptyStateView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            emptyStateView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            emptyStateView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            
+            // Empty state image constraints
+            emptyStateImageView.centerXAnchor.constraint(equalTo: emptyStateView.centerXAnchor),
+            emptyStateImageView.centerYAnchor.constraint(equalTo: emptyStateView.centerYAnchor, constant: -30),
+            emptyStateImageView.widthAnchor.constraint(equalToConstant: 80),
+            emptyStateImageView.heightAnchor.constraint(equalToConstant: 80),
+            
+            // Empty state label constraints
+            emptyStateLabel.topAnchor.constraint(equalTo: emptyStateImageView.bottomAnchor, constant: 16),
+            emptyStateLabel.leadingAnchor.constraint(equalTo: emptyStateView.leadingAnchor, constant: 32),
+            emptyStateLabel.trailingAnchor.constraint(equalTo: emptyStateView.trailingAnchor, constant: -32)
         ])
+    }
+    
+    private func updateEmptyState() {
+        emptyStateLabel.text = viewModel.emptyStateMessage
+        
+        let configuration = UIImage.SymbolConfiguration(pointSize: 50, weight: .light)
+        emptyStateImageView.image = UIImage(systemName: viewModel.emptyStateImageName, withConfiguration: configuration)
     }
 }
 
@@ -120,7 +184,19 @@ extension ListingViewController: ListingViewModelDelegate {
     
     func didUpdateUsers() {
         DispatchQueue.main.async { [weak self] in
-            self?.tableView.reloadData()
+            guard let self = self else { return }
+            
+            self.tableView.reloadData()
+            
+            // Update empty state content
+            self.updateEmptyState()
+            
+            // Show/Hide the empty state view
+            let shouldShowEmptyState = self.viewModel.shouldShowEmptyState
+            self.emptyStateView.isHidden = !shouldShowEmptyState
+            self.tableView.isHidden = shouldShowEmptyState
+            
+            print("ListingViewController: Table view reloaded, showing \(self.viewModel.numberOfUsers) users")
         }
     }
     
