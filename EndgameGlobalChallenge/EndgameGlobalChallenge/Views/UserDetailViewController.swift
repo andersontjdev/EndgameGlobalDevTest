@@ -131,6 +131,80 @@ class UserDetailViewController: UIViewController {
         return indicator
     }()
     
+    /// Error state
+    private let errorView: UIView = {
+        let view = UIView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.isHidden = true
+        
+        return view
+    }()
+    
+    private let errorImageView: UIImageView = {
+        let imageView = UIImageView()
+        let configuration = UIImage.SymbolConfiguration(pointSize: 50, weight: .light)
+        imageView.image = UIImage(systemName: "exclamationmark.triangle", withConfiguration: configuration)
+        imageView.tintColor = .systemRed
+        imageView.contentMode = .scaleAspectFit
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        
+        return imageView
+    }()
+    
+    private let errorLabel: UILabel = {
+        let label = UILabel()
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        label.textColor = .secondaryLabel
+        label.font = .systemFont(ofSize: 16)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        
+        return label
+    }()
+    
+    private let retryButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setTitle("Retry", for: .normal)
+        button.setTitleColor(.white, for: .normal)
+        button.backgroundColor = .systemBlue
+        button.layer.cornerRadius = 8
+        button.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        
+        return button
+    }()
+    
+    /// Loading state
+    private let loadingView: UIView = {
+        let view = UIView()
+        view.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.8)
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.isHidden = true
+        
+        return view
+    }()
+
+    private let loadingStackView: UIStackView = {
+        let stackView = UIStackView()
+        stackView.axis = .vertical
+        stackView.spacing = 16
+        stackView.alignment = .center
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        
+        return stackView
+    }()
+
+    private let loadingLabel: UILabel = {
+        let label = UILabel()
+        label.text = "Loading profile data..."
+        label.textAlignment = .center
+        label.textColor = .secondaryLabel
+        label.font = .systemFont(ofSize: 16)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        
+        return label
+    }()
+    
     // MARK: Initialization
     
     init(user: User) {
@@ -149,6 +223,10 @@ class UserDetailViewController: UIViewController {
         super.viewDidLoad()
         setupUI()
         setupConstraints()
+        
+        // Show loading state on view load
+        showLoadingState()
+        
         Task {
             await viewModel.loadUserProfile()
         }
@@ -172,7 +250,18 @@ class UserDetailViewController: UIViewController {
         contentView.addSubview(profileHeaderView)
         contentView.addSubview(profileInfoView)
         contentView.addSubview(viewProfileButton)
-        contentView.addSubview(loadingIndicator)
+        
+        // Error state view
+        view.addSubview(errorView)
+        errorView.addSubview(errorImageView)
+        errorView.addSubview(errorLabel)
+        errorView.addSubview(retryButton)
+        
+        // Loading state view
+        view.addSubview(loadingView)
+        loadingView.addSubview(loadingStackView)
+        loadingStackView.addArrangedSubview(loadingIndicator)
+        loadingStackView.addArrangedSubview(loadingLabel)
         
         // Profile header
         profileHeaderView.addSubview(avatarImageView)
@@ -201,6 +290,7 @@ class UserDetailViewController: UIViewController {
         ])
         
         viewProfileButton.addTarget(self, action: #selector(viewProfileButtonTapped), for: .touchUpInside)
+        retryButton.addTarget(self, action: #selector(retryButtonTapped), for: .touchUpInside)
         
         updateUI()
     }
@@ -276,7 +366,40 @@ class UserDetailViewController: UIViewController {
             loadingIndicator.centerYAnchor.constraint(equalTo: view.centerYAnchor),
             
             imageLoadingIndicator.centerXAnchor.constraint(equalTo: avatarImageView.centerXAnchor),
-            imageLoadingIndicator.centerYAnchor.constraint(equalTo: avatarImageView.centerYAnchor)
+            imageLoadingIndicator.centerYAnchor.constraint(equalTo: avatarImageView.centerYAnchor),
+            
+            // Error view constraints
+            errorView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            errorView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            errorView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            errorView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            
+            // Error image constraints
+            errorImageView.centerXAnchor.constraint(equalTo: errorView.centerXAnchor),
+            errorImageView.centerYAnchor.constraint(equalTo: errorView.centerYAnchor, constant: -50),
+            errorImageView.widthAnchor.constraint(equalToConstant: 80),
+            errorImageView.heightAnchor.constraint(equalToConstant: 80),
+            
+            // Error label constraints
+            errorLabel.topAnchor.constraint(equalTo: errorImageView.bottomAnchor, constant: 20),
+            errorLabel.leadingAnchor.constraint(equalTo: errorView.leadingAnchor, constant: 32),
+            errorLabel.trailingAnchor.constraint(equalTo: errorView.trailingAnchor, constant: -32),
+            
+            // Retry button constraints
+            retryButton.topAnchor.constraint(equalTo: errorLabel.bottomAnchor, constant: 20),
+            retryButton.centerXAnchor.constraint(equalTo: errorView.centerXAnchor),
+            retryButton.widthAnchor.constraint(equalToConstant: 100),
+            retryButton.heightAnchor.constraint(equalToConstant: 40),
+            
+            // Loading overlay constraints
+            loadingView.topAnchor.constraint(equalTo: view.topAnchor),
+            loadingView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            loadingView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            loadingView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            
+            // Loading stack view constraints
+            loadingStackView.centerXAnchor.constraint(equalTo: loadingView.centerXAnchor),
+            loadingStackView.centerYAnchor.constraint(equalTo: loadingView.centerYAnchor)
         ])
     }
     
@@ -356,6 +479,37 @@ class UserDetailViewController: UIViewController {
         present(alert, animated: true)
     }
     
+    private func showLoadingState() {
+        loadingIndicator.startAnimating()
+        loadingView.isHidden = false
+        scrollView.isHidden = true
+        errorView.isHidden = true
+    }
+
+    private func hideLoadingState() {
+        loadingIndicator.stopAnimating()
+        loadingView.isHidden = true
+    }
+
+    private func showContentState() {
+        hideLoadingState()
+        scrollView.isHidden = false
+        errorView.isHidden = true
+    }
+
+    private func showErrorState(message: String) {
+        hideLoadingState()
+        scrollView.isHidden = true
+        errorView.isHidden = false
+        errorLabel.text = message
+    }
+
+    @objc private func retryButtonTapped() {
+        Task {
+            await viewModel.loadUserProfile()
+        }
+    }
+    
 }
 
 // MARK: Delegate Extensions
@@ -363,18 +517,19 @@ class UserDetailViewController: UIViewController {
 extension UserDetailViewController: UserDetailViewModelDelegate {
     
     func didLoadUserProfile() {
+        showContentState()
         updateUI()
     }
     
     func didStartLoading() {
-        loadingIndicator.startAnimating()
+        showLoadingState()
     }
     
     func didFinishLoading() {
-        loadingIndicator.stopAnimating()
+        hideLoadingState()
     }
     
     func didReceiveError(_ error: String) {
-        showErrorAlert(message: error)
+        showErrorState(message: error)
     }
 }
