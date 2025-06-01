@@ -12,17 +12,20 @@ struct User {
     let login: String
     let avatarUrl: String?
     let htmlUrl: String?
+    let type: String?
     
     // Mock data init
     init(id: Int,
          login: String,
          avatarUrl: String? = nil,
-         htmlUrl: String? = nil
+         htmlUrl: String? = nil,
+         type: String? = nil
     ) {
         self.id = id
         self.login = login
         self.avatarUrl = avatarUrl
         self.htmlUrl = htmlUrl
+        self.type = type
     }
 }
 
@@ -35,6 +38,7 @@ extension User: Codable {
         case login
         case avatarUrl = "avatar_url"
         case htmlUrl = "html_url"
+        case type
     }
 }
 

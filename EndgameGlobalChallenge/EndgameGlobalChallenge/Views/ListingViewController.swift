@@ -256,7 +256,9 @@ extension ListingViewController: UITableViewDelegate {
         
         print("Selected user: \(user.login)")
         
-        // TODO: Future implementation - Navigate to User Detail View
+        // Navigate to the user detail screen
+        let detailViewController = UserDetailViewController(user: user)
+        navigationController?.pushViewController(detailViewController, animated: true)
     }
 }
 

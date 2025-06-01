@@ -32,6 +32,27 @@ class UserCellTemplate: UITableViewCell {
         return label
     }()
     
+    private let userTypeLabel: UILabel = {
+        let label = UILabel()
+        label.font = .systemFont(ofSize: 14, weight: .regular)
+        label.textColor = .secondaryLabel
+        label.numberOfLines = 1
+        label.translatesAutoresizingMaskIntoConstraints = false
+        
+        return label
+    }()
+    
+    private let textStackView: UIStackView = {
+        let stackView = UIStackView()
+        stackView.axis = .vertical
+        stackView.spacing = 2
+        stackView.alignment = .leading
+        stackView.distribution = .fill
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        
+        return stackView
+    }()
+    
     private let containerView: UIView = {
         let view = UIView()
         view.translatesAutoresizingMaskIntoConstraints = false
@@ -71,6 +92,7 @@ class UserCellTemplate: UITableViewCell {
         super.prepareForReuse()
         avatarImageView.image = nil
         usernameLabel.text = nil
+        userTypeLabel.text = nil
         imageLoadingIndicator.stopAnimating()
         imageLoadingTask?.cancel()
         imageLoadingTask = nil
@@ -80,6 +102,15 @@ class UserCellTemplate: UITableViewCell {
     
     func configure(with user: User) {
         usernameLabel.text = user.login
+        
+        // Set the user type
+        if let type = user.type {
+            userTypeLabel.text = type.capitalized
+            userTypeLabel.isHidden = false
+        } else {
+            userTypeLabel.text = nil
+            userTypeLabel.isHidden = true
+        }
         
         // Load the avatar image
         if let avatarUrlString = user.avatarUrl {
@@ -97,8 +128,11 @@ class UserCellTemplate: UITableViewCell {
         
         contentView.addSubview(containerView)
         containerView.addSubview(avatarImageView)
-        containerView.addSubview(usernameLabel)
+        containerView.addSubview(textStackView)
         containerView.addSubview(imageLoadingIndicator)
+        
+        textStackView.addArrangedSubview(usernameLabel)
+        textStackView.addArrangedSubview(userTypeLabel)
         
         setupConstraints()
     }
@@ -117,10 +151,10 @@ class UserCellTemplate: UITableViewCell {
             avatarImageView.widthAnchor.constraint(equalToConstant: 60),
             avatarImageView.heightAnchor.constraint(equalToConstant: 60),
             
-            // Username label constraints
-            usernameLabel.leadingAnchor.constraint(equalTo: avatarImageView.trailingAnchor, constant: 12),
-            usernameLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
-            usernameLabel.centerYAnchor.constraint(equalTo: containerView.centerYAnchor),
+            // Text stack view constraints
+            textStackView.leadingAnchor.constraint(equalTo: avatarImageView.trailingAnchor, constant: 12),
+            textStackView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+            textStackView.centerYAnchor.constraint(equalTo: containerView.centerYAnchor),
             
             // Loading indicator contraints
             imageLoadingIndicator.centerXAnchor.constraint(equalTo: avatarImageView.centerXAnchor),

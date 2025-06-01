@@ -89,4 +89,62 @@ class GitHubAPIService {
         
         task.resume()
     }
+    
+    func fetchUserProfile(username: String, completion: @escaping (Result<UserProfile, APIError>) -> Void) {
+        guard let url = URL(string: "\(baseUrl)/users/\(username)") else {
+            completion(.failure(.invalidUrl))
+            
+            return
+        }
+        
+        print("GitHubAPIService: Fetching profile data for \(username)")
+        
+        let task = session.dataTask(with: url) { data, response, error in
+            if let error = error {
+                print("GitHubAPIService: Profile fetch error - \(error)")
+                completion(.failure(.networkError(error)))
+                
+                return
+            }
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("GitHubAPIService: Invalid response type")
+                completion(.failure(.invalidResponse))
+                
+                return
+            }
+            
+            print("GitHubAPITService: Profile response status code: \(httpResponse.statusCode)")
+            
+            if httpResponse.statusCode == 403 {
+                completion(.failure(.rateLimitExceeded))
+                
+                return
+            }
+            
+            guard httpResponse.statusCode == 200 else {
+                completion(.failure(.invalidResponse))
+                
+                return
+            }
+            
+            guard let data = data else {
+                print("GitHubAPIService: No profile data received from the server")
+                completion(.failure(.noData))
+                
+                return
+            }
+            
+            do {
+                let userProfile = try JSONDecoder().decode(UserProfile.self, from: data)
+                print("GitHubAPIService: Successfully decoded profile for \(userProfile.login)")
+                completion(.success(userProfile))
+            } catch {
+                print("GitHubAPIService: Profile decoding error - \(error)")
+                completion(.failure(.decodingError))
+            }
+        }
+        
+        task.resume()
+    }
 }
